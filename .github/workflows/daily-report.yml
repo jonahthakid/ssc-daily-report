@@ -2,7 +2,7 @@ name: SSC Daily Report
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # 12:00 UTC = 7am ET (winter) / 8am ET (summer)
+    - cron: '30 9 * * *'  # 09:30 UTC = 4:30am ET (winter) / 5:30am ET (summer); off-hour minute reduces GHA scheduling delay
   workflow_dispatch:       # allow manual trigger from Actions tab
 
 jobs:
