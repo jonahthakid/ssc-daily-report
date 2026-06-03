@@ -7,6 +7,7 @@ Run via GitHub Actions cron, Railway scheduled job, or any other scheduler.
 
 import os
 import smtplib
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -89,21 +90,43 @@ def get_access_token() -> str:
     return _access_token
 
 
-def shopify_graphql(query: str, variables: dict = None) -> dict:
-    response = requests.post(
-        GRAPHQL_URL,
-        headers={
-            "X-Shopify-Access-Token": get_access_token(),
-            "Content-Type": "application/json",
-        },
-        json={"query": query, "variables": variables or {}},
-        timeout=30,
-    )
-    response.raise_for_status()
-    data = response.json()
-    if "errors" in data:
-        raise RuntimeError(f"Shopify GraphQL errors: {data['errors']}")
-    return data["data"]
+def shopify_graphql(query: str, variables: dict = None, max_retries: int = 5) -> dict:
+    """POST a GraphQL query, retrying transient failures with exponential backoff.
+
+    Shopify intermittently returns 404s and throttles (429) on rapid repeated
+    calls. Rather than letting one flaky response kill the whole report, we retry
+    up to max_retries times with increasing waits (1s, 2s, 4s, 8s, 16s).
+    """
+    last_response = None
+    for attempt in range(max_retries):
+        response = requests.post(
+            GRAPHQL_URL,
+            headers={
+                "X-Shopify-Access-Token": get_access_token(),
+                "Content-Type": "application/json",
+            },
+            json={"query": query, "variables": variables or {}},
+            timeout=30,
+        )
+
+        if response.status_code in (404, 429, 500, 502, 503, 504):
+            last_response = response
+            wait = 2 ** attempt
+            print(f"Shopify returned {response.status_code}, retrying in {wait}s "
+                  f"(attempt {attempt + 1}/{max_retries})...")
+            time.sleep(wait)
+            continue
+
+        response.raise_for_status()
+        data = response.json()
+        if "errors" in data:
+            raise RuntimeError(f"Shopify GraphQL errors: {data['errors']}")
+        return data["data"]
+
+    # Retries exhausted — surface the last failing response.
+    if last_response is not None:
+        last_response.raise_for_status()
+    raise RuntimeError("Shopify GraphQL failed after retries")
 
 
 ORDERS_QUERY = """
