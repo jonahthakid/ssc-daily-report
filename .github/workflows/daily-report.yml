@@ -2,25 +2,23 @@ name: SSC Daily Report
 
 on:
   schedule:
-    - cron: '30 9 * * *'  # 09:30 UTC = 4:30am ET (winter) / 5:30am ET (summer); off-hour minute reduces GHA scheduling delay
-  workflow_dispatch:       # allow manual trigger from Actions tab
+    - cron: '0 12 * * *'   # 12:00 UTC = 7am ET (winter) / 8am ET (summer)
+  workflow_dispatch:        # allow manual trigger from Actions tab
 
 jobs:
   send-report:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: python report.py
         env:
           SHOPIFY_SHOP_DOMAIN: ${{ secrets.SHOPIFY_SHOP_DOMAIN }}
-          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
-          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          SHOPIFY_API_VERSION: 2026-01
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_RECIPIENT: ${{ secrets.REPORT_RECIPIENT }}
